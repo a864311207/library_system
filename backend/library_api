@@ -1,0 +1,353 @@
+import mysql.connector
+from datetime import date
+
+
+class LibraryAPI:
+    def __init__(self):
+        self.connect_database()
+
+    def connect_database(self):
+        """连接数据库并创建必要表"""
+        try:
+            # 连接到MySQL服务器
+            admin_db = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="666666"
+            )
+            admin_cursor = admin_db.cursor()
+
+            # 创建数据库（如果不存在）
+            admin_cursor.execute(
+                "CREATE DATABASE IF NOT EXISTS library CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            admin_db.commit()
+            admin_cursor.close()
+            admin_db.close()
+
+            # 连接到library数据库
+            self.mydb = mysql.connector.connect(
+                host="localhost",
+                user="root",
+                password="666666",
+                database="library"
+            )
+            self.mycursor = self.mydb.cursor()
+
+            # 创建表
+            self._create_tables()
+
+        except mysql.connector.Error as err:
+            raise Exception(f"数据库连接错误: {err}")
+
+    def _create_tables(self):
+        """创建数据库表"""
+        # 创建书籍表
+        self.mycursor.execute("""
+            CREATE TABLE IF NOT EXISTS books (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255),
+                author VARCHAR(255),
+                isbn VARCHAR(255),
+                is_borrowed BOOLEAN DEFAULT 0
+            )
+        """)
+
+        # 创建用户表
+        self.mycursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL
+            )
+        """)
+
+        # 创建借书表
+        self.mycursor.execute("""
+            CREATE TABLE IF NOT EXISTS borrowed_books (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT,
+                book_id INT,
+                borrow_date DATE,
+                return_date DATE,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (book_id) REFERENCES books(id)
+            )
+        """)
+
+        self.mydb.commit()
+
+    def _format_book(self, book):
+        """格式化书籍数据"""
+        return {
+            'id': book[0],
+            'title': book[1],
+            'author': book[2],
+            'isbn': book[3],
+            'is_borrowed': bool(book[4])
+        }
+
+    # 用户管理
+    def register_user(self, name, password):
+        """用户注册"""
+        if not name or not password:
+            return False, "用户名和密码不能为空"
+
+        # 检查用户是否已存在
+        check_sql = "SELECT * FROM users WHERE name = %s"
+        self.mycursor.execute(check_sql, (name,))
+        existing_user = self.mycursor.fetchone()
+
+        if existing_user:
+            return False, f"用户名 {name} 已存在！"
+
+        # 插入新用户
+        insert_sql = "INSERT INTO users (name, password) VALUES (%s, %s)"
+        try:
+            self.mycursor.execute(insert_sql, (name, password))
+            self.mydb.commit()
+            return True, f"用户 {name} 注册成功！"
+        except mysql.connector.Error as err:
+            return False, f"注册时出错: {err}"
+
+    # 书籍管理
+    def add_book(self, title, author, isbn):
+        """添加书籍"""
+        if not title or not author or not isbn:
+            return False, "所有字段都必须填写"
+
+        # 检查ISBN是否已存在
+        check_sql = "SELECT * FROM books WHERE isbn = %s"
+        self.mycursor.execute(check_sql, (isbn,))
+        existing_book = self.mycursor.fetchone()
+
+        if existing_book:
+            return False, f"书籍 {title}（ISBN: {isbn}）已经存在于图书管理系统，不能重复添加。"
+
+        # 插入新书籍
+        sql = "INSERT INTO books (title, author, isbn) VALUES (%s, %s, %s)"
+        try:
+            self.mycursor.execute(sql, (title, author, isbn))
+            self.mydb.commit()
+            return True, f"{title}已添加到图书管理系统。"
+        except mysql.connector.Error as err:
+            return False, f"添加书籍时出错: {err}"
+
+    def remove_book(self, book_id):
+        """根据ID删除书籍"""
+        sql = "DELETE FROM books WHERE id = %s"
+        try:
+            self.mycursor.execute(sql, (book_id,))
+            self.mydb.commit()
+            if self.mycursor.rowcount > 0:
+                return True, f"ID为{book_id}的图书已从图书管理系统删除。"
+            else:
+                return False, f"未找到ID为{book_id}的图书。"
+        except mysql.connector.Error as err:
+            return False, f"删除图书时出错: {err}"
+
+    def list_books(self):
+        """获取所有书籍"""
+        self.mycursor.execute("SELECT * FROM books ORDER BY id")
+        books = self.mycursor.fetchall()
+        return [self._format_book(book) for book in books]
+
+    def search_book(self, keyword):
+        """根据关键字搜索书籍"""
+        if not keyword:
+            return []
+
+        sql = "SELECT * FROM books WHERE title LIKE %s OR author LIKE %s OR isbn LIKE %s ORDER BY id"
+        val = (f"%{keyword}%", f"%{keyword}%", f"%{keyword}%")
+        self.mycursor.execute(sql, val)
+        books = self.mycursor.fetchall()
+        return [self._format_book(book) for book in books]
+
+    def search_books_by_author(self, author):
+        """根据作者查询所有书籍"""
+        if not author:
+            return []
+
+        sql = "SELECT * FROM books WHERE author LIKE %s ORDER BY id"
+        self.mycursor.execute(sql, (f"%{author}%",))
+        books = self.mycursor.fetchall()
+        return [self._format_book(book) for book in books]
+
+    def update_book(self, book_id, new_title, new_author, new_isbn):
+        """修改图书信息"""
+        if not new_title or not new_author or not new_isbn:
+            return False, "所有字段都必须填写"
+
+        # 检查书籍是否存在
+        check_sql = "SELECT * FROM books WHERE id = %s"
+        self.mycursor.execute(check_sql, (book_id,))
+        existing_book = self.mycursor.fetchone()
+
+        if not existing_book:
+            return False, f"未找到ID为 {book_id} 的书籍！"
+
+        # 更新图书信息
+        update_sql = """
+            UPDATE books 
+            SET title = %s, author = %s, isbn = %s
+            WHERE id = %s
+        """
+        try:
+            self.mycursor.execute(update_sql, (new_title, new_author, new_isbn, book_id))
+            self.mydb.commit()
+            if self.mycursor.rowcount > 0:
+                return True, f"ID为 {book_id} 的书籍信息已更新！"
+            else:
+                return False, "图书信息更新失败，请检查输入数据。"
+        except mysql.connector.Error as err:
+            return False, f"更新时出错: {err}"
+
+    # 借阅管理
+    def borrow_book(self, user_name, book_id):
+        """借书功能"""
+        # 检查书籍是否存在且未借出
+        self.mycursor.execute("SELECT is_borrowed FROM books WHERE id = %s", (book_id,))
+        result = self.mycursor.fetchone()
+        if not result:
+            return False, f"未找到ID为{book_id}的图书。"
+
+        if result[0] == 1:
+            return False, "这本书已经被借走了，不能再借。"
+
+        # 查找用户ID
+        self.mycursor.execute("SELECT id FROM users WHERE name = %s", (user_name,))
+        user = self.mycursor.fetchone()
+        if not user:
+            return False, f"用户 {user_name} 不存在，请先注册。"
+
+        user_id = user[0]
+
+        # 借书
+        borrow_date = date.today()
+        try:
+            self.mycursor.execute("INSERT INTO borrowed_books (book_id, user_id, borrow_date) VALUES (%s, %s, %s)",
+                                  (book_id, user_id, borrow_date))
+            self.mycursor.execute("UPDATE books SET is_borrowed = 1 WHERE id = %s", (book_id,))
+            self.mydb.commit()
+            return True, f"{user_name} 已成功借阅 ID 为 {book_id} 的图书。"
+        except mysql.connector.Error as err:
+            return False, f"借书时出错: {err}"
+
+    def return_book(self, user_name, book_id):
+        """还书功能"""
+        # 查找用户ID
+        self.mycursor.execute("SELECT id FROM users WHERE name = %s", (user_name,))
+        user = self.mycursor.fetchone()
+        if not user:
+            return False, f"用户 {user_name} 不存在，请先注册。"
+
+        user_id = user[0]
+
+        # 查找借书记录
+        self.mycursor.execute(
+            "SELECT id, return_date FROM borrowed_books WHERE book_id = %s AND user_id = %s AND return_date IS NULL",
+            (book_id, user_id))
+        borrow_record = self.mycursor.fetchone()
+        if not borrow_record:
+            return False, f"用户 {user_name} 没有借阅ID为 {book_id} 的图书。"
+
+        # 还书
+        return_date = date.today()
+        try:
+            self.mycursor.execute("UPDATE borrowed_books SET return_date = %s WHERE id = %s",
+                                  (return_date, borrow_record[0]))
+            self.mycursor.execute("UPDATE books SET is_borrowed = 0 WHERE id = %s", (book_id,))
+            self.mydb.commit()
+            return True, f"{user_name} 已成功归还 ID 为 {book_id} 的图书。"
+        except mysql.connector.Error as err:
+            return False, f"还书时出错: {err}"
+
+    def view_borrowed_books(self):
+        """查看借书记录"""
+        self.mycursor.execute("""
+            SELECT u.name, b.title, bb.borrow_date, bb.return_date, b.id
+            FROM borrowed_books bb
+            JOIN users u ON bb.user_id = u.id
+            JOIN books b ON bb.book_id = b.id
+            ORDER BY bb.borrow_date DESC
+        """)
+        borrowed_books = self.mycursor.fetchall()
+
+        return [
+            {
+                'user_name': record[0],
+                'book_title': record[1],
+                'borrow_date': str(record[2]),
+                'return_date': str(record[3]) if record[3] else '未还',
+                'book_id': record[4]
+            }
+            for record in borrowed_books
+        ]
+
+    def get_book_statistics(self):
+        """获取图书统计信息"""
+        try:
+            # 获取总图书数
+            self.mycursor.execute("SELECT COUNT(*) FROM books")
+            total_books = self.mycursor.fetchone()[0]
+
+            # 获取已借出图书数
+            self.mycursor.execute("SELECT COUNT(*) FROM books WHERE is_borrowed = 1")
+            borrowed_books = self.mycursor.fetchone()[0]
+
+            # 获取可借阅图书数
+            self.mycursor.execute("SELECT COUNT(*) FROM books WHERE is_borrowed = 0")
+            available_books = self.mycursor.fetchone()[0]
+
+            # 获取用户数
+            self.mycursor.execute("SELECT COUNT(*) FROM users")
+            total_users = self.mycursor.fetchone()[0]
+
+            return {
+                'total_books': total_books,
+                'borrowed_books': borrowed_books,
+                'available_books': available_books,
+                'total_users': total_users
+            }
+        except mysql.connector.Error as err:
+            return None
+
+    def get_author_distribution(self):
+        """获取作者分布数据"""
+        try:
+            sql = """
+                SELECT author, COUNT(*) as book_count 
+                FROM books 
+                GROUP BY author 
+                ORDER BY book_count DESC 
+                LIMIT 10
+            """
+            self.mycursor.execute(sql)
+            results = self.mycursor.fetchall()
+
+            return [{'author': row[0], 'book_count': row[1]} for row in results]
+        except mysql.connector.Error as err:
+            return []
+
+    def get_borrow_trend(self, days=30):
+        """获取借阅趋势数据"""
+        try:
+            sql = """
+                SELECT 
+                    DATE(borrow_date) as borrow_date,
+                    COUNT(*) as borrow_count
+                FROM borrowed_books 
+                WHERE borrow_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                GROUP BY DATE(borrow_date)
+                ORDER BY borrow_date
+            """
+            self.mycursor.execute(sql, (days,))
+            results = self.mycursor.fetchall()
+
+            return [{'date': str(row[0]), 'count': row[1]} for row in results]
+        except mysql.connector.Error as err:
+            return []
+
+    def close(self):
+        """关闭数据库连接"""
+        if hasattr(self, 'mydb'):
+            self.mydb.close()
