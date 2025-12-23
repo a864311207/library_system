@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图书管理系统</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 标题 -->
+        <header class="header">
+            <h1><i class="fas fa-book"></i> 图书管理系统</h1>
+            <div class="server-status">
+                <span id="serverStatus">服务器状态: 检查中...</span>
+            </div>
+        </header>
+
+        <!-- 标签页导航 -->
+        <div class="tabs">
+            <button class="tab active" data-tab="books"><i class="fas fa-book-open"></i> 图书管理</button>
+            <button class="tab" data-tab="borrow"><i class="fas fa-hand-holding"></i> 借阅管理</button>
+            <button class="tab" data-tab="users"><i class="fas fa-users"></i> 用户管理</button>
+            <button class="tab" data-tab="search"><i class="fas fa-search"></i> 搜索查询</button>
+            <button class="tab" data-tab="visualization"><i class="fas fa-chart-bar"></i> 数据可视化</button>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="content">
+            <!-- 图书管理标签页 -->
+            <div class="tab-content active" id="books-tab">
+                <div class="section">
+                    <h2><i class="fas fa-plus-circle"></i> 添加新书</h2>
+                    <div class="form-group">
+                        <input type="text" id="bookTitle" placeholder="图书标题" class="form-control">
+                        <input type="text" id="bookAuthor" placeholder="作者" class="form-control">
+                        <input type="text" id="bookIsbn" placeholder="ISBN" class="form-control">
+                        <button class="btn btn-primary" onclick="addBook()"><i class="fas fa-plus"></i> 添加图书</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-list"></i> 图书列表</h2>
+                    <button class="btn btn-secondary" onclick="loadBooks()"><i class="fas fa-sync-alt"></i> 刷新列表</button>
+                    <div class="table-container">
+                        <table id="booksTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>标题</th>
+                                    <th>作者</th>
+                                    <th>ISBN</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="booksTableBody">
+                                <!-- 书籍列表将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-edit"></i> 修改图书信息</h2>
+                    <div class="form-group">
+                        <input type="number" id="updateBookId" placeholder="图书ID" class="form-control">
+                        <input type="text" id="updateBookTitle" placeholder="新标题" class="form-control">
+                        <input type="text" id="updateBookAuthor" placeholder="新作者" class="form-control">
+                        <input type="text" id="updateBookIsbn" placeholder="新ISBN" class="form-control">
+                        <button class="btn btn-warning" onclick="updateBook()"><i class="fas fa-save"></i> 修改信息</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 借阅管理标签页 -->
+            <div class="tab-content" id="borrow-tab">
+                <div class="section">
+                    <h2><i class="fas fa-book-reader"></i> 借阅图书</h2>
+                    <div class="form-group">
+                        <input type="text" id="borrowUserName" placeholder="用户名" class="form-control">
+                        <input type="number" id="borrowBookId" placeholder="图书ID" class="form-control">
+                        <button class="btn btn-primary" onclick="borrowBook()"><i class="fas fa-hand-holding"></i> 借阅</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-book"></i> 归还图书</h2>
+                    <div class="form-group">
+                        <input type="text" id="returnUserName" placeholder="用户名" class="form-control">
+                        <input type="number" id="returnBookId" placeholder="图书ID" class="form-control">
+                        <button class="btn btn-success" onclick="returnBook()"><i class="fas fa-undo"></i> 归还</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-history"></i> 借阅记录</h2>
+                    <button class="btn btn-secondary" onclick="loadBorrowedBooks()"><i class="fas fa-sync-alt"></i> 刷新记录</button>
+                    <div class="table-container">
+                        <table id="borrowedTable">
+                            <thead>
+                                <tr>
+                                    <th>用户名</th>
+                                    <th>图书标题</th>
+                                    <th>借书日期</th>
+                                    <th>还书日期</th>
+                                    <th>图书ID</th>
+                                </tr>
+                            </thead>
+                            <tbody id="borrowedTableBody">
+                                <!-- 借阅记录将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 用户管理标签页 -->
+            <div class="tab-content" id="users-tab">
+                <div class="section">
+                    <h2><i class="fas fa-user-plus"></i> 用户注册</h2>
+                    <div class="form-group">
+                        <input type="text" id="userName" placeholder="用户名" class="form-control">
+                        <input type="password" id="userPassword" placeholder="密码" class="form-control">
+                        <button class="btn btn-primary" onclick="registerUser()"><i class="fas fa-user-plus"></i> 注册</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 搜索查询标签页 -->
+            <div class="tab-content" id="search-tab">
+                <div class="section">
+                    <h2><i class="fas fa-search"></i> 搜索图书</h2>
+                    <div class="form-group">
+                        <input type="text" id="searchKeyword" placeholder="输入关键字（标题、作者或ISBN）" class="form-control">
+                        <button class="btn btn-primary" onclick="searchBooks()"><i class="fas fa-search"></i> 搜索</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-user-pen"></i> 按作者查询</h2>
+                    <div class="form-group">
+                        <input type="text" id="searchAuthor" placeholder="输入作者名称" class="form-control">
+                        <button class="btn btn-primary" onclick="searchByAuthor()"><i class="fas fa-user-pen"></i> 查询</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-search"></i> 搜索结果</h2>
+                    <div class="table-container">
+                        <table id="searchResultsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>标题</th>
+                                    <th>作者</th>
+                                    <th>ISBN</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="searchResultsBody">
+                                <!-- 搜索结果将通过JavaScript动态加载 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据可视化标签页 -->
+            <div class="tab-content" id="visualization-tab">
+                <div class="section">
+                    <h2><i class="fas fa-chart-pie"></i> 数据可视化</h2>
+                    <div class="visualization-controls">
+                        <button class="btn btn-primary" onclick="loadBookStatusChart()">
+                            <i class="fas fa-chart-pie"></i> 图书状态统计
+                        </button>
+                        <button class="btn btn-primary" onclick="loadAuthorDistributionChart()">
+                            <i class="fas fa-user-pen"></i> 作者分布
+                        </button>
+                        <button class="btn btn-primary" onclick="loadBorrowTrendChart()">
+                            <i class="fas fa-chart-line"></i> 借阅趋势
+                        </button>
+                        <button class="btn btn-secondary" onclick="refreshAllCharts()">
+                            <i class="fas fa-sync-alt"></i> 刷新所有图表
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-chart-bar"></i> 图书借阅状态统计</h2>
+                    <div class="chart-container">
+                        <canvas id="bookStatusChart"></canvas>
+                    </div>
+                    <div class="chart-stats" id="bookStatusStats">
+                        <!-- 统计数据将在这里显示 -->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-chart-pie"></i> 作者图书分布</h2>
+                    <div class="chart-container">
+                        <canvas id="authorDistributionChart"></canvas>
+                    </div>
+                    <div class="chart-stats" id="authorStats">
+                        <!-- 统计数据将在这里显示 -->
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-chart-line"></i> 借阅趋势分析</h2>
+                    <div class="chart-container">
+                        <canvas id="borrowTrendChart"></canvas>
+                    </div>
+                    <div class="chart-filters">
+                        <select id="trendPeriod" class="form-control" onchange="loadBorrowTrendChart()">
+                            <option value="7">最近7天</option>
+                            <option value="30" selected>最近30天</option>
+                            <option value="90">最近90天</option>
+                            <option value="365">最近一年</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2><i class="fas fa-table"></i> 数据摘要</h2>
+                    <div class="summary-cards">
+                        <div class="summary-card" id="totalBooksCard">
+                            <div class="summary-icon">
+                                <i class="fas fa-book"></i>
+                            </div>
+                            <div class="summary-content">
+                                <h3>总图书数</h3>
+                                <p id="totalBooksCount">0</p>
+                            </div>
+                        </div>
+                        <div class="summary-card" id="borrowedBooksCard">
+                            <div class="summary-icon">
+                                <i class="fas fa-hand-holding"></i>
+                            </div>
+                            <div class="summary-content">
+                                <h3>已借出图书</h3>
+                                <p id="borrowedBooksCount">0</p>
+                            </div>
+                        </div>
+                        <div class="summary-card" id="availableBooksCard">
+                            <div class="summary-icon">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="summary-content">
+                                <h3>可借阅图书</h3>
+                                <p id="availableBooksCount">0</p>
+                            </div>
+                        </div>
+                        <div class="summary-card" id="totalUsersCard">
+                            <div class="summary-icon">
+                                <i class="fas fa-users"></i>
+                            </div>
+                            <div class="summary-content">
+                                <h3>注册用户</h3>
+                                <p id="totalUsersCount">0</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 消息显示区域 -->
+        <div class="message-container">
+            <div id="messageBox" class="message"></div>
+        </div>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div id="confirmDialog" class="modal">
+        <div class="modal-content">
+            <h3>确认操作</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="cancelAction()">取消</button>
+                <button class="btn btn-danger" onclick="confirmAction()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
